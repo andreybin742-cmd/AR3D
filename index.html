@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>📦 Шкаф в AR</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a1a;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            color: #fff;
+            padding: 15px;
+        }
+        h1 {
+            font-size: 18px;
+            font-weight: 400;
+            color: rgba(255,255,255,0.4);
+            margin-bottom: 12px;
+            letter-spacing: 3px;
+        }
+        model-viewer {
+            width: 100%;
+            max-width: 700px;
+            height: 50vh;
+            max-height: 450px;
+            background: #111122;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+        }
+        .controls {
+            margin-top: 16px;
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, #4a9eff, #6b6bff);
+            color: white;
+            box-shadow: 0 4px 20px rgba(74, 158, 255, 0.3);
+        }
+        .btn:hover { transform: scale(1.04); }
+        .btn:active { transform: scale(0.96); }
+        .btn-ar {
+            background: linear-gradient(135deg, #00cc88, #00aa66);
+            box-shadow: 0 4px 20px rgba(0, 204, 136, 0.3);
+        }
+        .btn-ar:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .hint {
+            margin-top: 14px;
+            color: rgba(255,255,255,0.2);
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-align: center;
+        }
+        #status {
+            margin-top: 8px;
+            font-size: 13px;
+            min-height: 24px;
+            text-align: center;
+            padding: 0 10px;
+        }
+        #status.error { color: rgba(255,100,100,0.7); }
+        #status.success { color: rgba(0,255,200,0.7); }
+        #status.info { color: rgba(255,255,255,0.3); }
+
+        @media (max-width: 600px) {
+            model-viewer { height: 45vh; max-height: 350px; }
+            h1 { font-size: 15px; }
+            .btn { padding: 10px 20px; font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📦 ШКАФ В ДОПОЛНЕННОЙ РЕАЛЬНОСТИ</h1>
+
+    <model-viewer
+        id="modelViewer"
+        src="https://aiprintgen.com/3d-models/ar-viewer-wall-mounted-cabinet-glb-3d-model"
+        camera-controls
+        auto-rotate
+        rotation-per-second="12deg"
+        shadow-intensity="0.6"
+        ar
+        ar-modes="scene-viewer webxr quick-look"
+        ar-scale="auto"
+        alt="3D модель шкафа"
+    ></model-viewer>
+
+    <div class="controls">
+        <button class="btn btn-ar" id="arBtn">🔮 Посмотреть в AR</button>
+        <button class="btn" id="resetBtn">⟳ Сбросить вид</button>
+    </div>
+
+    <div id="status">⏳ Проверка поддержки AR...</div>
+
+    <div class="hint">
+        <span>🖱 Вращай мышкой</span>
+        <span>🔍 Скролл для зума</span>
+        <span>📱 На телефоне — пальцем</span>
+    </div>
+
+    <script type="module">
+        import 'https://ajax.googleapis.com/ajax/libs/model-viewer/4.1.0/model-viewer.min.js';
+
+        const modelViewer = document.getElementById('modelViewer');
+        const arBtn = document.getElementById('arBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const status = document.getElementById('status');
+
+        // ---- ФУНКЦИЯ ДЛЯ СТАТУСА ----
+        function setStatus(text, type = 'info') {
+            status.textContent = text;
+            status.className = type;
+        }
+
+        // ---- ПРОВЕРКА ПОДДЕРЖКИ AR ----
+        function checkARSupport() {
+            // Проверяем, поддерживает ли браузер WebXR (AR)
+            if (navigator.xr) {
+                navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                    if (supported) {
+                        setStatus('✅ AR поддерживается! Нажми "Посмотреть в AR"', 'success');
+                        arBtn.disabled = false;
+                    } else {
+                        // Пробуем альтернативный метод (Scene Viewer)
+                        checkSceneViewer();
+                    }
+                }).catch(() => {
+                    checkSceneViewer();
+                });
+            } else {
+                checkSceneViewer();
+            }
+        }
+
+        function checkSceneViewer() {
+            // Проверяем, открыт ли файл через HTTPS
+            const isHttps = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+            
+            if (!isHttps) {
+                setStatus('⚠️ Для AR нужен HTTPS. Загрузи страницу через HTTPS или открой на телефоне.', 'error');
+                arBtn.disabled = true;
+                return;
+            }
+
+            // Проверка на мобильное устройство
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const isChrome = /Chrome/i.test(navigator.userAgent) && /Android/i.test(navigator.userAgent);
+
+            if (isMobile && (isChrome || isSafari)) {
+                setStatus('📱 Открой в Chrome (Android) или Safari (iOS) для AR', 'info');
+                arBtn.disabled = false;
+            } else if (isMobile) {
+                setStatus('⚠️ Используй Chrome на Android или Safari на iOS', 'error');
+                arBtn.disabled = true;
+            } else {
+                setStatus('💻 AR работает только на телефоне. Но 3D-модель доступна!', 'info');
+                arBtn.disabled = true;
+            }
+        }
+
+        // ---- КНОПКА AR ----
+        arBtn.addEventListener('click', async () => {
+            setStatus('🔮 Запускаем AR...', 'info');
+            
+            try {
+                // Пытаемся активировать AR через <model-viewer>
+                if (modelViewer.canActivateAR) {
+                    modelViewer.activateAR();
+                    setStatus('✅ AR запущен! Наведи на пол', 'success');
+                } else {
+                    // Альтернатива: пробуем через Scene Viewer
+                    const arUrl = modelViewer.getARUrl?.();
+                    if (arUrl) {
+                        setStatus('📱 Открываю в AR...', 'info');
+                        window.open(arUrl, '_blank');
+                    } else {
+                        throw new Error('AR не доступен');
+                    }
+                }
+            } catch (err) {
+                setStatus('❌ Не удалось запустить AR. Попробуй в Chrome на Android или Safari на iOS.', 'error');
+                console.warn('AR error:', err);
+            }
+        });
+
+        // ---- КНОПКА СБРОСА ----
+        resetBtn.addEventListener('click', () => {
+            modelViewer.cameraTarget = '0 0 0';
+            modelViewer.cameraOrbit = '0 0 3';
+            modelViewer.autoRotate = true;
+            setStatus('✅ Вид сброшен', 'info');
+            setTimeout(() => {
+                setStatus('🔄 Нажми "Посмотреть в AR" на телефоне', 'info');
+            }, 2000);
+        });
+
+        // ---- СОБЫТИЯ AR ----
+        modelViewer.addEventListener('ar-status', (event) => {
+            if (event.detail.status === 'session-started') {
+                setStatus('✅ AR активен! Осмотри шкаф в комнате', 'success');
+            }
+            if (event.detail.status === 'session-ended') {
+                setStatus('🔙 Выход из AR', 'info');
+                setTimeout(() => {
+                    setStatus('🔄 Нажми "Посмотреть в AR" снова', 'info');
+                }, 1500);
+            }
+        });
+
+        // ---- ЗАПУСК ----
+        setTimeout(checkARSupport, 500);
+
+        console.log('📦 Шкаф в AR запущен!');
+        console.log('📱 Открой на телефоне для AR-режима');
+    </script>
+</body>
+</html>
